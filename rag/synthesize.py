@@ -11,11 +11,14 @@ Rules:
 """
 
 import os
+import re
 import sys
 import anthropic
 from pathlib import Path
 import chromadb
 from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+
+CITE_RE = re.compile(r"\[(\d+)\]")
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -35,21 +38,38 @@ knowledge, do not fill in with what you know from other sources, do not speculat
 If the fragments do not contain the answer, say so explicitly: "The retrieved \
 abstracts do not contain enough information about this."
 
-2. CITE every claim with a [n] marker corresponding to the number of the fragment \
-used. A single claim may carry several citations [1][3]. Citing is mandatory.
+2. CITE every claim with a [n] marker whose number is the index of the fragment that \
+supports it. ONLY cite fragment numbers that actually appear in the provided list \
+(if you were given fragments [1] through [12], never write [13] or any number outside \
+that range). A claim may carry several citations, e.g. [1][3]. Only cite a fragment if \
+it genuinely supports the claim — do not attach a citation to a fragment that is not \
+actually about what you are stating. Citing is mandatory for every factual claim.
 
 3. If the user's query is TOO VAGUE or broad to give a useful answer (for example \
 "cancer", "treatment", "studies"), do NOT try to answer. Instead, politely ask them \
 to narrow it down: which disease, which drug, which population, which outcome they \
 are interested in. Be specific about what information would help.
 
-4. Be CONCISE: maximum 2-3 paragraphs. Do not repeat the question. Go straight to \
-the evidence.
+4. CALIBRATE LENGTH to the breadth of the question:
+   - Narrow/specific question (one drug, one outcome) → 1-3 concise paragraphs.
+   - Broad question spanning several studies or subtopics → a more comprehensive \
+answer (up to ~6 paragraphs), organized by subtopic, synthesizing across the relevant \
+fragments. Be thorough but stay grounded and cited; never pad.
+   Do not repeat the question. Go straight to the evidence.
 
-5. Answer in the SAME language as the user's question.
+5. ALWAYS answer in ENGLISH, regardless of the language of the user's question.
 
 6. Do not invent numerical data, drug names, or results. If a value is not in the \
-fragments, do not provide it."""
+fragments, do not provide it.
+
+7. STICK TO WHAT THE FRAGMENT STATES. Do not add evaluative or editorializing \
+language that the fragment itself does not contain (e.g. do not call a result \
+"highly effective", "impressive", or "promising" unless the fragment uses such \
+wording). Report specific numbers (response rates, thresholds, percentages, doses) \
+ONLY when that exact figure appears in the fragment you cite. When a fragment only \
+describes what a study measured or set out to do — without stating the result — say \
+that the result is not reported, rather than implying an outcome. Never attach a \
+citation [n] to a claim that fragment n does not directly support."""
 
 
 def load_collections():
@@ -99,12 +119,60 @@ def build_context(chunks: list[dict]) -> tuple[str, list[dict]]:
         lines.append(
             f"[{i}] Title: {s['title']}\n"
             f"    Source: {url}\n"
-            f"    Fragment: {s['text'][:1200]}"
+            f"    Fragment: {s['text'][:2500]}"
         )
     return "\n\n".join(lines), sources
 
 
+def reconcile_citations(answer: str, all_sources: list[dict]) -> tuple[str, list[dict], list[int]]:
+    """
+    Keep only the sources actually cited in the answer, renumber them contiguously
+    by order of first appearance, and rewrite the [n] markers to match.
+
+    Returns (rewritten_answer, cited_sources, invalid_citations).
+    - cited_sources: only the sources referenced in the text, renumbered 1..k,
+      each annotated with its new "num".
+    - invalid_citations: any [n] in the text that did not map to a real fragment
+      (n out of range) — these are hallucinated citations and are stripped from
+      the text.
+    """
+    n_sources = len(all_sources)
+    cited_in_order: list[int] = []
+    invalid: list[int] = []
+
+    for m in CITE_RE.finditer(answer):
+        old = int(m.group(1))
+        if 1 <= old <= n_sources:
+            if old not in cited_in_order:
+                cited_in_order.append(old)
+        else:
+            if old not in invalid:
+                invalid.append(old)
+
+    # old (1-indexed) -> new (1-indexed, contiguous)
+    remap = {old: i + 1 for i, old in enumerate(cited_in_order)}
+
+    def _sub(m):
+        old = int(m.group(1))
+        if old in remap:
+            return f"[{remap[old]}]"
+        return ""  # strip hallucinated / out-of-range citations
+
+    rewritten = CITE_RE.sub(_sub, answer)
+    # tidy up any doubled spaces left by stripped markers
+    rewritten = re.sub(r" {2,}", " ", rewritten).replace(" .", ".").replace(" ,", ",")
+
+    cited_sources = []
+    for old in cited_in_order:
+        s = dict(all_sources[old - 1])
+        s["num"] = remap[old]
+        cited_sources.append(s)
+
+    return rewritten, cited_sources, invalid
+
+
 def synthesize(query: str, mode: str = "with_figs", client=None, cols=None):
+    """Returns (answer, cited_sources, invalid_citations)."""
     if cols is None:
         cols = load_collections()
     if client is None:
@@ -112,27 +180,28 @@ def synthesize(query: str, mode: str = "with_figs", client=None, cols=None):
 
     collection = cols.get(mode) or next(iter(cols.values()))
     chunks = retrieve(collection, query)
-    context, sources = build_context(chunks)
+    context, all_sources = build_context(chunks)
 
     user_message = (
         f"RETRIEVED FRAGMENTS:\n\n{context}\n\n"
         f"{'='*60}\n"
         f"USER QUESTION: {query}\n\n"
-        f"Answer following the rules. Cite with [n]. If it is too vague, ask for "
-        f"more detail."
+        f"Answer following the rules. Cite with [n] using only the fragment numbers "
+        f"above. If it is too vague, ask for more detail."
     )
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=1500,
+        max_tokens=2200,
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
 
-    answer = "".join(b.text for b in response.content if b.type == "text")
-    return answer, sources
+    raw_answer = "".join(b.text for b in response.content if b.type == "text")
+    answer, cited_sources, invalid = reconcile_citations(raw_answer, all_sources)
+    return answer, cited_sources, invalid
 
 
 def main():
@@ -168,14 +237,16 @@ def main():
             continue
 
         print("\n  Synthesizing...\n")
-        answer, sources = synthesize(q, mode, client, cols)
+        answer, sources, invalid = synthesize(q, mode, client, cols)
         print(answer)
+        if invalid:
+            print(f"\n  [!] Stripped {len(invalid)} hallucinated citation(s): {invalid}")
         print("\n" + "-" * 64)
-        print("SOURCES:")
-        for i, s in enumerate(sources, 1):
+        print("CITED SOURCES:")
+        for s in sources:
             url = f"https://doi.org/{s['doi']}" if s["doi"] else \
                   f"https://www.sciencedirect.com/science/article/pii/{s['pii']}"
-            print(f"  [{i}] {s['title'][:70]}\n      {url}")
+            print(f"  [{s['num']}] {s['title'][:70]}\n      {url}")
 
 
 if __name__ == "__main__":

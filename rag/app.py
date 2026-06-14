@@ -82,7 +82,7 @@ def ask():
         return jsonify({"error": "Empty query"}), 400
 
     try:
-        answer, sources = rag_synthesize(query, mode, anthropic_client, cols)
+        answer, sources, invalid = rag_synthesize(query, mode, anthropic_client, cols)
     except Exception as e:
         return jsonify({"error": f"Synthesis error: {e}"}), 500
 
@@ -91,13 +91,14 @@ def ask():
         url = f"https://doi.org/{s['doi']}" if s.get("doi") else \
               f"https://www.sciencedirect.com/science/article/pii/{s['pii']}"
         src_list.append({
+            "num":   s["num"],
             "title": s["title"],
             "url":   url,
             "doi":   s.get("doi", ""),
             "score": s.get("score", 0),
         })
 
-    return jsonify({"answer": answer, "sources": src_list})
+    return jsonify({"answer": answer, "sources": src_list, "invalid_citations": invalid})
 
 
 @app.route("/search", methods=["POST"])

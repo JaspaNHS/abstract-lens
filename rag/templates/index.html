@@ -233,14 +233,16 @@ function renderAnswer(data) {
 
   if (data.sources && data.sources.length) {
     html += `<div class="sources-title">Cited sources</div>`;
-    html += data.sources.map((s, i) => `
-<div class="source-card" id="src-${i+1}">
-  <div class="source-num">${i+1}</div>
+    html += data.sources.map(s => `
+<div class="source-card" id="src-${s.num}">
+  <div class="source-num">${s.num}</div>
   <div class="source-body">
     <a class="source-title-link" href="${s.url}" target="_blank" rel="noopener">${esc(s.title)}</a>
     <div class="source-meta">${s.doi ? 'DOI: ' + s.doi + ' · ' : ''}Relevance ${s.score}</div>
   </div>
 </div>`).join('');
+  } else {
+    html += `<div class="sources-title" style="color:#999">No sources cited (clarification or no-answer response)</div>`;
   }
   res.innerHTML = html;
 }
