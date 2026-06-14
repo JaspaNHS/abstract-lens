@@ -1,0 +1,29 @@
+# ── Secrets ───────────────────────────────────────────────
+.env
+*.key
+**/secrets*
+
+# ── Downloaded data (heavy / copyrighted — do not commit) ──
+pdfs_blood_146_S1/
+*.pdf
+
+# ── RAG generated artifacts ───────────────────────────────
+rag/chromadb/
+rag/chunks_with_figs/
+rag/chunks_no_figs/
+rag/**/manifest.json
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ── OS / editor ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

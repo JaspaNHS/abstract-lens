@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blood 2025 ASH — RAG Assistant</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; color: #1a1a18; min-height: 100vh; }
+
+  header { background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.12); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 15px; }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: #c0392b; }
+  .stats { display: flex; gap: 16px; }
+  .stat { font-size: 12px; color: #888; }
+  .stat strong { color: #1a1a18; font-weight: 500; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+  .search-box { background: #fff; border-radius: 14px; border: 0.5px solid rgba(0,0,0,0.12); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+  .search-row { display: flex; gap: 10px; align-items: stretch; }
+  .search-input { flex: 1; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 11px 14px; font-size: 15px; font-family: inherit; outline: none; background: #fafaf8; transition: border-color 0.15s; }
+  .search-input:focus { border-color: rgba(0,0,0,0.4); background: #fff; }
+  .search-btn { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 0 22px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+  .search-btn:hover { opacity: 0.82; }
+  .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .controls { display: flex; gap: 1.5rem; margin-top: 1rem; align-items: center; flex-wrap: wrap; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-label { font-size: 13px; color: #666; }
+  .seg { display: flex; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
+  .seg-btn { background: none; border: none; padding: 5px 13px; font-size: 13px; cursor: pointer; color: #555; transition: background 0.12s, color 0.12s; }
+  .seg-btn.active { background: #1a1a18; color: #fff; }
+  .seg-btn:not(:last-child) { border-right: 0.5px solid rgba(0,0,0,0.18); }
+
+  .answer-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 1.5rem 1.75rem; margin-bottom: 1.25rem; }
+  .answer-label { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; color: #534AB7; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+  .answer-label .dot { width: 6px; height: 6px; border-radius: 50%; background: #534AB7; }
+  .answer-text { font-size: 15px; line-height: 1.75; color: #222; }
+  .answer-text p { margin-bottom: 0.9rem; }
+  .answer-text .cite { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin: 0 1px; font-size: 11px; font-weight: 500; color: #185FA5; background: #e6f1fb; border-radius: 4px; cursor: pointer; vertical-align: text-top; text-decoration: none; }
+  .answer-text .cite:hover { background: #b5d4f4; }
+
+  .sources-title { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.04em; margin: 1.5rem 0 0.6rem; }
+  .source-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 0.85rem 1.1rem; margin-bottom: 0.55rem; display: flex; gap: 12px; transition: border-color 0.15s; }
+  .source-card:hover { border-color: rgba(0,0,0,0.22); }
+  .source-card.highlight { border-color: #378ADD; background: #f5faff; }
+  .source-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px; background: #e6f1fb; color: #185FA5; font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+  .source-body { flex: 1; min-width: 0; }
+  .source-title-link { font-size: 13px; font-weight: 500; color: #185FA5; text-decoration: none; line-height: 1.4; }
+  .source-title-link:hover { text-decoration: underline; }
+  .source-meta { font-size: 11px; color: #999; margin-top: 3px; }
+
+  .spinner { display: none; text-align: center; padding: 3rem 0; }
+  .spinner.visible { display: block; }
+  .spin { width: 26px; height: 26px; border: 2px solid rgba(0,0,0,0.1); border-top-color: #534AB7; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  .spin-label { font-size: 13px; color: #999; margin-top: 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg { background: #fcebeb; border: 0.5px solid #f09595; border-radius: 8px; padding: 0.8rem 1rem; font-size: 13px; color: #A32D2D; margin-bottom: 1rem; display: none; }
+  .error-msg.visible { display: block; }
+
+  .empty { text-align: center; padding: 3.5rem 0; color: #aaa; }
+  .empty-icon { font-size: 38px; margin-bottom: 1rem; opacity: 0.4; }
+  .empty p { font-size: 14px; }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 1.2rem; }
+  .example-pill { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid rgba(0,0,0,0.18); background: #fff; color: #555; cursor: pointer; transition: background 0.12s; }
+  .example-pill:hover { background: #f1efe8; }
+
+  /* Fragment search mode */
+  .frag-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 0.7rem; }
+  .frag-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .frag-title a { font-size: 14px; font-weight: 500; color: #185FA5; text-decoration: none; line-height: 1.4; }
+  .frag-title a:hover { text-decoration: underline; }
+  .score-badge { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 20px; background: #eaf3de; color: #3B6D11; height: fit-content; }
+  .frag-excerpt { font-size: 13px; line-height: 1.6; color: #444; background: #fafaf8; border-radius: 7px; padding: 9px 11px; border-left: 2px solid rgba(0,0,0,0.1); }
+
+  .disabled-banner { background: #faeeda; border: 0.5px solid #efc775; border-radius: 8px; padding: 0.7rem 1rem; font-size: 13px; color: #854F0B; margin-bottom: 1rem; }
+  mark { background: #faeeda; border-radius: 2px; padding: 0 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div> Blood 2025 ASH — RAG Assistant</div>
+  <div class="stats">
+    <span class="stat"><strong>8,255</strong> articles</span>
+    <span class="stat"><strong>{{ stats.get('with_figs', 0)|int }}</strong> chunks</span>
+  </div>
+</header>
+
+<main>
+  {% if not synthesis %}
+  <div class="disabled-banner">
+    Synthesis mode disabled: <code>ANTHROPIC_API_KEY</code> is not set on the server.
+    Set the variable and restart to get cited summary answers. Fragment search still works.
+  </div>
+  {% endif %}
+
+  <div class="search-box">
+    <div class="search-row">
+      <input class="search-input" type="text" id="query" placeholder="Ask a question about the ASH 2025 abstracts…" autocomplete="off" spellcheck="false">
+      <button class="search-btn" id="searchBtn" onclick="run()">Ask</button>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Action:</span>
+        <div class="seg" id="actionGroup">
+          <button class="seg-btn active" data-action="ask" onclick="setAction(this)">Synthesize answer</button>
+          <button class="seg-btn" data-action="search" onclick="setAction(this)">Search fragments</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Corpus:</span>
+        <div class="seg" id="modeGroup">
+          <button class="seg-btn active" data-mode="with_figs" onclick="setMode(this)">With figures</button>
+          <button class="seg-btn" data-mode="no_figs" onclick="setMode(this)">Without figures</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="spinner" id="spinner">
+    <div class="spin"></div>
+    <div class="spin-label" id="spinLabel">Analyzing the abstracts and drafting…</div>
+  </div>
+
+  <div id="results"></div>
+
+  <div class="empty" id="emptyState">
+    <div class="empty-icon">&#129504;</div>
+    <p>Ask anything. The answer is based <strong>only</strong> on the 8,255 abstracts, with a citation for every source.</p>
+    <div class="examples">
+      <span class="example-pill" onclick="loadEx(this)">What efficacy does teclistamab show in refractory myeloma?</span>
+      <span class="example-pill" onclick="loadEx(this)">CAR-T toxicities in leukemia</span>
+      <span class="example-pill" onclick="loadEx(this)">Luspatercept results in thalassemia</span>
+    </div>
+  </div>
+</main>
+
+<script>
+let action = 'ask';
+let mode = 'with_figs';
+const synthesisOn = {{ 'true' if synthesis else 'false' }};
+
+function setAction(btn) {
+  document.querySelectorAll('#actionGroup .seg-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  action = btn.dataset.action;
+  document.getElementById('searchBtn').textContent = action === 'ask' ? 'Ask' : 'Search';
+}
+function setMode(btn) {
+  document.querySelectorAll('#modeGroup .seg-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  mode = btn.dataset.mode;
+}
+function loadEx(el) { document.getElementById('query').value = el.textContent; run(); }
+document.getElementById('query').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+
+function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderCitations(text) {
+  // Turns [n] into clickable chips that highlight the source
+  return esc(text).replace(/\[(\d+)\]/g, (m, n) =>
+    `<a class="cite" onclick="jumpSource(${n})">${n}</a>`);
+}
+
+function jumpSource(n) {
+  const el = document.getElementById('src-' + n);
+  if (el) {
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.classList.add('highlight');
+    setTimeout(() => el.classList.remove('highlight'), 1600);
+  }
+}
+
+async function run() {
+  const query = document.getElementById('query').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('searchBtn');
+  const spin = document.getElementById('spinner');
+  const spinLabel = document.getElementById('spinLabel');
+  const err = document.getElementById('errorMsg');
+  const res = document.getElementById('results');
+  const empty = document.getElementById('emptyState');
+
+  btn.disabled = true;
+  err.classList.remove('visible');
+  res.innerHTML = '';
+  empty.style.display = 'none';
+  spinLabel.textContent = action === 'ask'
+    ? 'Analyzing the abstracts and drafting…'
+    : 'Searching for relevant fragments…';
+  spin.classList.add('visible');
+
+  try {
+    const endpoint = action === 'ask' ? '/ask' : '/search';
+    const body = action === 'ask'
+      ? {query, mode}
+      : {query, mode, top_k: 8};
+    const resp = await fetch(endpoint, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Unknown error');
+
+    if (action === 'ask') renderAnswer(data);
+    else renderFragments(data.results, query);
+  } catch(e) {
+    err.textContent = 'Error: ' + e.message;
+    err.classList.add('visible');
+    empty.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    spin.classList.remove('visible');
+  }
+}
+
+function renderAnswer(data) {
+  const res = document.getElementById('results');
+  const paras = data.answer.split(/\n\n+/).map(p =>
+    `<p>${renderCitations(p)}</p>`).join('');
+
+  let html = `
+<div class="answer-card">
+  <div class="answer-label"><span class="dot"></span> Answer based on the abstracts</div>
+  <div class="answer-text">${paras}</div>
+</div>`;
+
+  if (data.sources && data.sources.length) {
+    html += `<div class="sources-title">Cited sources</div>`;
+    html += data.sources.map((s, i) => `
+<div class="source-card" id="src-${i+1}">
+  <div class="source-num">${i+1}</div>
+  <div class="source-body">
+    <a class="source-title-link" href="${s.url}" target="_blank" rel="noopener">${esc(s.title)}</a>
+    <div class="source-meta">${s.doi ? 'DOI: ' + s.doi + ' · ' : ''}Relevance ${s.score}</div>
+  </div>
+</div>`).join('');
+  }
+  res.innerHTML = html;
+}
+
+function highlightTerms(text, query) {
+  const words = query.trim().split(/\s+/).filter(w => w.length > 3);
+  let out = esc(text);
+  words.forEach(w => {
+    const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+    out = out.replace(re, '<mark>$1</mark>');
+  });
+  return out;
+}
+
+function renderFragments(results, query) {
+  const res = document.getElementById('results');
+  if (!results || !results.length) {
+    document.getElementById('emptyState').style.display = 'block';
+    return;
+  }
+  res.innerHTML = `<div class="sources-title">${results.length} fragments</div>` +
+    results.map(r => `
+<div class="frag-card">
+  <div class="frag-top">
+    <div class="frag-title"><a href="${r.url}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
+    <span class="score-badge">${r.score.toFixed(3)}</span>
+  </div>
+  <div class="frag-excerpt">${highlightTerms(r.excerpt, query)}</div>
+</div>`).join('');
+}
+</script>
+</body>
+</html>

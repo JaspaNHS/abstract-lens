@@ -1,0 +1,17 @@
+# PDF download + scraping
+requests
+beautifulsoup4
+lxml
+selenium
+
+# PDF text extraction
+pymupdf
+
+# RAG: embeddings + vector store
+chromadb
+onnxruntime
+tqdm
+
+# Synthesis layer + web app
+anthropic
+flask
