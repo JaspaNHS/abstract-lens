@@ -1,6 +1,8 @@
 """
-Extrae los PIIs/DOIs del TOC de Blood Vol.146 Suppl.S1 usando Selenium.
-Guarda el resultado en manifest.json dentro de pdfs_blood_146_S1/
+Extracts PIIs/DOIs from the Blood Vol.146 Suppl.S1 TOC using Selenium, and tags
+each article with the ScienceDirect section header it appears under:
+  Plenary Scientific Session > Oral > Poster > Online Publication Only
+(the meeting's importance order). Saves manifest.json in pdfs_blood_146_S1/.
 """
 
 import re
@@ -20,6 +22,34 @@ MANIFEST  = OUT_DIR / "manifest.json"
 
 PII_RE = re.compile(r"/science/article/(?:pii/|abs/pii/)([A-Z0-9]{17,})")
 
+# Canonical section labels in importance order, normalized for matching
+SECTION_LABELS = {
+    "plenary scientific session": "plenary",
+    "oral": "oral",
+    "poster": "poster",
+    "online publication only": "pubonly",
+}
+
+# Walk the TOC body in document order, emitting section headers and article PIIs
+# interleaved, so each PII can be attributed to the section header above it.
+ORDERED_WALK_JS = r"""
+const LABELS = ["Plenary Scientific Session","Oral","Poster","Online Publication Only"];
+const out = [];
+const all = document.querySelectorAll('h1,h2,h3,h4,a');
+for (const el of all) {
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'a') {
+    const href = el.getAttribute('href') || '';
+    const m = href.match(/\/science\/article\/(?:abs\/)?pii\/([A-Z0-9]{17,})/);
+    if (m) out.push({t:'a', v:m[1], title:(el.textContent||'').trim().slice(0,160)});
+  } else {
+    const txt = (el.textContent || '').trim();
+    if (LABELS.includes(txt)) out.push({t:'h', v:txt});
+  }
+}
+return out;
+"""
+
 
 def make_driver() -> webdriver.Chrome:
     opts = Options()
@@ -34,9 +64,11 @@ def make_driver() -> webdriver.Chrome:
 def extract_articles(driver) -> list[dict]:
     articles = []
     seen_piis = set()
+    current_section = "unknown"          # carried ACROSS pages
+    section_counts = {}
 
     def scrape_current_page():
-        # Esperar a que carguen los artículos
+        nonlocal current_section
         try:
             WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located(
@@ -46,71 +78,78 @@ def extract_articles(driver) -> list[dict]:
         except Exception:
             pass
 
-        time.sleep(2)  # espera extra para JS dinámico
+        time.sleep(2)  # extra wait for dynamic JS
 
-        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/science/article/pii/']")
+        items = driver.execute_script(ORDERED_WALK_JS) or []
         new_found = 0
-        for a in links:
-            href = a.get_attribute("href") or ""
-            m = PII_RE.search(href)
-            if not m:
-                continue
-            pii = m.group(1)
-            if pii in seen_piis:
-                continue
-            seen_piis.add(pii)
-            # Intentar obtener título del enlace o su contenedor
-            title = a.text.strip()
-            if not title:
-                try:
-                    parent = a.find_element(By.XPATH, "./ancestor::h3[1] | ./ancestor::h2[1]")
-                    title = parent.text.strip()
-                except Exception:
-                    title = pii
-            articles.append({"pii": pii, "doi": "", "title": title[:120]})
-            new_found += 1
+        for it in items:
+            if it["t"] == "h":
+                current_section = SECTION_LABELS.get(it["v"].strip().lower(), current_section)
+            else:  # article link
+                pii = it["v"]
+                if pii in seen_piis:
+                    continue
+                seen_piis.add(pii)
+                title = (it.get("title") or pii)[:120]
+                articles.append({
+                    "pii": pii, "doi": "", "title": title,
+                    "section": current_section,
+                })
+                section_counts[current_section] = section_counts.get(current_section, 0) + 1
+                new_found += 1
         return new_found
 
-    print(f"Abriendo: {TOC_URL}")
+    print(f"Opening: {TOC_URL}")
     driver.get(TOC_URL)
     time.sleep(4)
 
-    # Si hay redirección a login, esperar que el usuario se loguee
     if "login" in driver.current_url.lower() or "signin" in driver.current_url.lower():
-        print("\n*** Se requiere login. Inicia sesión en el navegador que se abrió. ***")
-        print("*** Presiona ENTER aquí cuando hayas iniciado sesión. ***")
+        print("\n*** Login required. Sign in on the browser window that opened. ***")
+        print("*** Press ENTER here once you are signed in. ***")
         input()
-        driver.get(TOC_URL)
-        time.sleep(4)
 
+    # JS-driven "Next page" button. Click via JS after scrolling it into view;
+    # stop when the button is gone or disabled, or when no new articles appear.
     page = 1
     while True:
-        print(f"  Página {page}: extrayendo artículos...")
         found = scrape_current_page()
-        print(f"    Nuevos en esta página: {found}")
+        print(f"  Page {page}: +{found}  (section={current_section}, total={len(articles)})")
 
-        # Buscar botón "Siguiente página"
-        try:
-            next_btn = driver.find_element(
-                By.CSS_SELECTOR,
-                "a.next-link, li.pagination-next a, [aria-label='Next page'], "
-                "button[aria-label='Next page'], a[aria-label='Next']"
-            )
-            if next_btn.is_displayed() and next_btn.is_enabled():
-                next_btn.click()
-                page += 1
-                time.sleep(2)
-            else:
+        next_btn = None
+        for sel in ["a[aria-label='Next page']", "button[aria-label='Next page']",
+                    "a.next-link", "li.pagination-next a"]:
+            els = driver.find_elements(By.CSS_SELECTOR, sel)
+            if els:
+                next_btn = els[0]
                 break
-        except Exception:
+
+        if not next_btn:
+            break
+        disabled = (next_btn.get_attribute("aria-disabled") == "true"
+                    or next_btn.get_attribute("disabled") is not None)
+        if disabled:
             break
 
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", next_btn)
+            time.sleep(0.5)
+            driver.execute_script("arguments[0].click();", next_btn)
+            page += 1
+            time.sleep(2.5)
+        except Exception as e:
+            print(f"    pagination stopped: {e}")
+            break
+
+        if page > 120:   # safety cap
+            break
+
+    print(f"\n  Section breakdown: {section_counts}")
     return articles
 
 
 def main():
     print("=" * 60)
-    print("Scraping TOC — Blood Vol.146 Suppl.S1")
+    print("Scraping TOC — Blood Vol.146 Suppl.S1 (with section tags)")
     print("=" * 60)
 
     driver = make_driver()
@@ -120,14 +159,14 @@ def main():
         driver.quit()
 
     if not articles:
-        print("\nNo se encontraron artículos. El sitio puede requerir login.")
+        print("\nNo articles found. The site may require login.")
         return
 
     with open(MANIFEST, "w", encoding="utf-8") as f:
         json.dump(articles, f, indent=2, ensure_ascii=False)
 
-    print(f"\nGuardados {len(articles)} artículos en {MANIFEST}")
-    print("Ahora ejecuta: python download_blood_pdfs.py")
+    print(f"\nSaved {len(articles)} articles to {MANIFEST}")
+    print("Next: python rag/build_metadata.py   (then rebuild as needed)")
 
 
 if __name__ == "__main__":

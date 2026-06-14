@@ -3,16 +3,20 @@ OpenEvidence-style RAG synthesis layer.
 Retrieves chunks from ChromaDB and uses Claude to synthesize an answer
 based EXCLUSIVELY on the retrieved abstracts, with citations.
 
-Rules:
-  - Only uses information present in the retrieved fragments (no external knowledge)
-  - Cites every claim with [n] pointing to the source
-  - If the query is too vague, asks for more context instead of answering
-  - Maximum 2-3 paragraphs
+Features:
+  - Grounded answers with mandatory [n] citations; no external knowledge.
+  - Asks for clarification when the query is too vague.
+  - Length scales with the breadth of the question.
+  - Session-tier re-ranking: Plenary > Oral > Poster > Online-Publication-Only,
+    so higher-importance abstracts surface first (data from meta_index.json).
+  - Conversational follow-ups via a message history.
+  - Coverage stats so the user can see how much of the corpus matched.
 """
 
 import os
 import re
 import sys
+import json
 import anthropic
 from pathlib import Path
 import chromadb
@@ -24,12 +28,24 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 MODEL    = "claude-opus-4-8"
 DB_PATH  = str(Path(__file__).parent / "chromadb")
-N_CHUNKS = 12   # fragments retrieved as context
+META_PATH = Path(__file__).parent / "meta_index.json"
+
+N_CANDIDATES = 40   # fragments pulled from the vector store before re-ranking
+N_CHUNKS     = 12   # distinct abstracts kept as context after re-ranking
+RELEVANCE_FLOOR = 0.32   # cosine similarity below this is treated as "weak match"
+
+# Session importance order and the bonus added to the cosine score when re-ranking.
+# Relevance still dominates; the bonus only decides near-ties and sinks pub-only.
+TIER_BONUS = {"plenary": 0.08, "oral": 0.04, "poster": 0.0, "pubonly": -0.06,
+              "regular": 0.0, "unknown": 0.0}
+TIER_LABEL = {"plenary": "Plenary", "oral": "Oral", "poster": "Poster",
+              "pubonly": "Publication-only", "regular": "Session", "unknown": "Session"}
 
 SYSTEM_PROMPT = """You are a biomedical research assistant that answers questions \
 based EXCLUSIVELY on the fragments of scientific abstracts provided to you \
 (from the journal Blood, Vol. 146, Supplement S1 — the abstracts of the 67th ASH \
-Annual Meeting, 2025).
+Annual Meeting, 2025). Each fragment is tagged with its presentation tier \
+(Plenary > Oral > Poster > Publication-only), reflecting the meeting's importance order.
 
 STRICT RULES:
 
@@ -42,8 +58,7 @@ abstracts do not contain enough information about this."
 supports it. ONLY cite fragment numbers that actually appear in the provided list \
 (if you were given fragments [1] through [12], never write [13] or any number outside \
 that range). A claim may carry several citations, e.g. [1][3]. Only cite a fragment if \
-it genuinely supports the claim — do not attach a citation to a fragment that is not \
-actually about what you are stating. Citing is mandatory for every factual claim.
+it genuinely supports the claim. Citing is mandatory for every factual claim.
 
 3. If the user's query is TOO VAGUE or broad to give a useful answer (for example \
 "cancer", "treatment", "studies"), do NOT try to answer. Instead, politely ask them \
@@ -65,11 +80,19 @@ fragments, do not provide it.
 7. STICK TO WHAT THE FRAGMENT STATES. Do not add evaluative or editorializing \
 language that the fragment itself does not contain (e.g. do not call a result \
 "highly effective", "impressive", or "promising" unless the fragment uses such \
-wording). Report specific numbers (response rates, thresholds, percentages, doses) \
-ONLY when that exact figure appears in the fragment you cite. When a fragment only \
-describes what a study measured or set out to do — without stating the result — say \
-that the result is not reported, rather than implying an outcome. Never attach a \
-citation [n] to a claim that fragment n does not directly support."""
+wording). Report specific numbers ONLY when that exact figure appears in the fragment \
+you cite. When a fragment only describes what a study measured — without stating the \
+result — say the result is not reported. Never attach a citation [n] to a claim that \
+fragment n does not directly support.
+
+8. WEIGH EVIDENCE BY TIER. Lead with Plenary and Oral findings; treat Poster and \
+especially Publication-only abstracts as lower-strength. When an important claim rests \
+only on Poster or Publication-only fragments, note that briefly so the reader can judge \
+the strength of the evidence.
+
+9. CONVERSATION. If earlier turns are present, treat the new question as a follow-up on \
+the same topic: build on what was already discussed, do not repeat it, and ground the \
+new answer in the freshly provided fragments."""
 
 
 def load_collections():
@@ -84,82 +107,90 @@ def load_collections():
     return cols
 
 
-def retrieve(collection, query: str, n: int = N_CHUNKS) -> list[dict]:
+def load_meta() -> dict:
+    if META_PATH.exists():
+        return json.loads(META_PATH.read_text(encoding="utf-8"))
+    return {}
+
+
+def retrieve(collection, query: str, meta: dict, n_candidates=N_CANDIDATES) -> list[dict]:
+    """Retrieve candidates, attach session metadata, and re-rank by tier."""
     res = collection.query(
         query_texts=[query],
-        n_results=n,
+        n_results=n_candidates,
         include=["documents", "metadatas", "distances"],
     )
-    out = []
-    for doc, meta, dist in zip(res["documents"][0], res["metadatas"][0], res["distances"][0]):
-        out.append({
+    cand = []
+    for doc, m, dist in zip(res["documents"][0], res["metadatas"][0], res["distances"][0]):
+        pii = m.get("pii", "")
+        info = meta.get(pii, {})
+        stype = info.get("session_type", "unknown")
+        score = round(1 - dist, 3)
+        cand.append({
             "text":  doc,
-            "title": meta.get("title", "Untitled"),
-            "doi":   meta.get("doi", ""),
-            "pii":   meta.get("pii", ""),
-            "score": round(1 - dist, 3),
+            "title": m.get("title", "Untitled"),
+            "doi":   info.get("doi") or m.get("doi", ""),
+            "pii":   pii,
+            "page":  info.get("page"),
+            "session_type": stype,
+            "tier_label": TIER_LABEL.get(stype, "Session"),
+            "score": score,
+            "adj":   round(score + TIER_BONUS.get(stype, 0.0), 4),
         })
-    return out
-
-
-def build_context(chunks: list[dict]) -> tuple[str, list[dict]]:
-    """Builds the numbered context block and the source list."""
-    # Deduplicate by article, keeping the best fragment of each
-    seen = {}
-    for c in chunks:
+    # Deduplicate by article (keep best-adjusted fragment), then sort by adjusted score
+    best = {}
+    for c in cand:
         key = c["doi"] or c["pii"]
-        if key not in seen:
-            seen[key] = c
-    sources = list(seen.values())
+        if key not in best or c["adj"] > best[key]["adj"]:
+            best[key] = c
+    ranked = sorted(best.values(), key=lambda x: -x["adj"])
+    return ranked
 
+
+def coverage_stats(ranked: list[dict]) -> dict:
+    """Summarize how much of the corpus matched, by tier and relevance."""
+    strong = [c for c in ranked if c["score"] >= RELEVANCE_FLOOR]
+    by_tier = {}
+    for c in strong:
+        by_tier[c["session_type"]] = by_tier.get(c["session_type"], 0) + 1
+    return {
+        "candidates_total": len(ranked),
+        "above_floor": len(strong),
+        "by_tier": by_tier,
+        "floor": RELEVANCE_FLOOR,
+    }
+
+
+def build_context(sources: list[dict]) -> str:
     lines = []
     for i, s in enumerate(sources, 1):
-        url = f"https://doi.org/{s['doi']}" if s["doi"] else \
-              f"https://www.sciencedirect.com/science/article/pii/{s['pii']}"
+        loc = f"Blood 2025;146(S1):{s['page']}" if s.get("page") else (s.get("doi") or s["pii"])
         lines.append(
-            f"[{i}] Title: {s['title']}\n"
-            f"    Source: {url}\n"
-            f"    Fragment: {s['text'][:2500]}"
+            f"[{i}] ({s['tier_label']} session · {loc}) {s['title']}\n"
+            f"    {s['text'][:2500]}"
         )
-    return "\n\n".join(lines), sources
+    return "\n\n".join(lines)
 
 
-def reconcile_citations(answer: str, all_sources: list[dict]) -> tuple[str, list[dict], list[int]]:
-    """
-    Keep only the sources actually cited in the answer, renumber them contiguously
-    by order of first appearance, and rewrite the [n] markers to match.
-
-    Returns (rewritten_answer, cited_sources, invalid_citations).
-    - cited_sources: only the sources referenced in the text, renumbered 1..k,
-      each annotated with its new "num".
-    - invalid_citations: any [n] in the text that did not map to a real fragment
-      (n out of range) — these are hallucinated citations and are stripped from
-      the text.
-    """
-    n_sources = len(all_sources)
-    cited_in_order: list[int] = []
-    invalid: list[int] = []
-
+def reconcile_citations(answer: str, all_sources: list[dict]):
+    """Keep only cited sources, renumber contiguously, strip out-of-range markers."""
+    n = len(all_sources)
+    cited_in_order, invalid = [], []
     for m in CITE_RE.finditer(answer):
         old = int(m.group(1))
-        if 1 <= old <= n_sources:
+        if 1 <= old <= n:
             if old not in cited_in_order:
                 cited_in_order.append(old)
-        else:
-            if old not in invalid:
-                invalid.append(old)
+        elif old not in invalid:
+            invalid.append(old)
 
-    # old (1-indexed) -> new (1-indexed, contiguous)
     remap = {old: i + 1 for i, old in enumerate(cited_in_order)}
 
     def _sub(m):
         old = int(m.group(1))
-        if old in remap:
-            return f"[{remap[old]}]"
-        return ""  # strip hallucinated / out-of-range citations
+        return f"[{remap[old]}]" if old in remap else ""
 
     rewritten = CITE_RE.sub(_sub, answer)
-    # tidy up any doubled spaces left by stripped markers
     rewritten = re.sub(r" {2,}", " ", rewritten).replace(" .", ".").replace(" ,", ",")
 
     cited_sources = []
@@ -167,20 +198,38 @@ def reconcile_citations(answer: str, all_sources: list[dict]) -> tuple[str, list
         s = dict(all_sources[old - 1])
         s["num"] = remap[old]
         cited_sources.append(s)
-
     return rewritten, cited_sources, invalid
 
 
-def synthesize(query: str, mode: str = "with_figs", client=None, cols=None):
-    """Returns (answer, cited_sources, invalid_citations)."""
+def synthesize(query: str, history=None, client=None, cols=None, meta=None, mode="with_figs"):
+    """
+    Returns (answer, cited_sources, invalid_citations, coverage).
+    history: optional list of {"q": str, "a": str} prior turns (oldest first).
+    """
     if cols is None:
         cols = load_collections()
     if client is None:
         client = anthropic.Anthropic()
+    if meta is None:
+        meta = load_meta()
 
     collection = cols.get(mode) or next(iter(cols.values()))
-    chunks = retrieve(collection, query)
-    context, all_sources = build_context(chunks)
+
+    # For follow-ups, resolve anaphora by retrieving on the last question + the new one
+    retrieval_query = query
+    if history:
+        retrieval_query = f"{history[-1]['q']} {query}"
+
+    ranked = retrieve(collection, retrieval_query, meta)
+    cov = coverage_stats(ranked)
+    sources = ranked[:N_CHUNKS]
+    context = build_context(sources)
+
+    # Build message history (clean Q&A turns) + current turn with fresh fragments
+    messages = []
+    for turn in (history or []):
+        messages.append({"role": "user", "content": turn["q"]})
+        messages.append({"role": "assistant", "content": turn["a"]})
 
     user_message = (
         f"RETRIEVED FRAGMENTS:\n\n{context}\n\n"
@@ -189,6 +238,7 @@ def synthesize(query: str, mode: str = "with_figs", client=None, cols=None):
         f"Answer following the rules. Cite with [n] using only the fragment numbers "
         f"above. If it is too vague, ask for more detail."
     )
+    messages.append({"role": "user", "content": user_message})
 
     response = client.messages.create(
         model=MODEL,
@@ -196,57 +246,61 @@ def synthesize(query: str, mode: str = "with_figs", client=None, cols=None):
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+        messages=messages,
     )
 
-    raw_answer = "".join(b.text for b in response.content if b.type == "text")
-    answer, cited_sources, invalid = reconcile_citations(raw_answer, all_sources)
-    return answer, cited_sources, invalid
+    raw = "".join(b.text for b in response.content if b.type == "text")
+    answer, cited_sources, invalid = reconcile_citations(raw, sources)
+    return answer, cited_sources, invalid, cov
 
 
 def main():
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ERROR: set the ANTHROPIC_API_KEY environment variable")
-        print("  PowerShell:  $env:ANTHROPIC_API_KEY = 'sk-ant-...'")
         return
 
     cols = load_collections()
+    meta = load_meta()
     client = anthropic.Anthropic()
 
     print("=" * 64)
     print("  Synthetic RAG — Blood Vol.146 Suppl.S1 (OpenEvidence-style)")
-    print("  Type your question. 'exit' to quit.")
-    print("  Commands: /mode with_figs | /mode no_figs")
+    print("  Type your question. 'exit' to quit. 'new' to reset the thread.")
     print("=" * 64)
 
-    mode = "with_figs"
+    history = []
     while True:
         try:
-            q = input(f"\n[{mode}] Question > ").strip()
+            q = input(f"\n[turn {len(history)+1}] > ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if not q:
             continue
         if q.lower() in ("exit", "quit"):
             break
-        if q.startswith("/mode "):
-            m = q.split()[1]
-            if m in cols:
-                mode = m
-                print(f"  Mode: {mode}")
+        if q.lower() == "new":
+            history = []
+            print("  (conversation reset)")
             continue
 
         print("\n  Synthesizing...\n")
-        answer, sources, invalid = synthesize(q, mode, client, cols)
+        answer, sources, invalid, cov = synthesize(q, history, client, cols, meta)
         print(answer)
         if invalid:
-            print(f"\n  [!] Stripped {len(invalid)} hallucinated citation(s): {invalid}")
-        print("\n" + "-" * 64)
-        print("CITED SOURCES:")
-        for s in sources:
-            url = f"https://doi.org/{s['doi']}" if s["doi"] else \
-                  f"https://www.sciencedirect.com/science/article/pii/{s['pii']}"
-            print(f"  [{s['num']}] {s['title'][:70]}\n      {url}")
+            print(f"\n  [!] stripped hallucinated citations: {invalid}")
+        print("\n  " + "-" * 60)
+        print(f"  Coverage: {cov['above_floor']} abstracts matched above relevance "
+              f"{cov['floor']} (by tier: {cov['by_tier']})")
+        print("  CITED SOURCES:")
+        for s in sources_cited(sources):
+            loc = f"Blood 2025;146(S1):{s['page']}" if s.get("page") else s["pii"]
+            doi = f" doi:{s['doi']}" if s.get("doi") else ""
+            print(f"    [{s['num']}] ({s['tier_label']}) {s['title'][:60]}  {loc}{doi}")
+        history.append({"q": q, "a": answer})
+
+
+def sources_cited(sources):
+    return sources
 
 
 if __name__ == "__main__":

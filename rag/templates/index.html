@@ -8,74 +8,85 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; color: #1a1a18; min-height: 100vh; }
 
-  header { background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.12); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  header { background: #fff; border-bottom: 0.5px solid rgba(0,0,0,0.12); padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 15px; }
   .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: #c0392b; }
-  .stats { display: flex; gap: 16px; }
+  .header-actions { display: flex; align-items: center; gap: 14px; }
   .stat { font-size: 12px; color: #888; }
   .stat strong { color: #1a1a18; font-weight: 500; }
+  .new-btn { font-size: 12px; padding: 5px 12px; border-radius: 7px; border: 0.5px solid rgba(0,0,0,0.2); background: #fff; color: #444; cursor: pointer; }
+  .new-btn:hover { background: #f1efe8; }
 
-  main { max-width: 820px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+  main { max-width: 820px; margin: 0 auto; padding: 1.5rem 1.5rem 9rem; }
 
-  .search-box { background: #fff; border-radius: 14px; border: 0.5px solid rgba(0,0,0,0.12); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
-  .search-row { display: flex; gap: 10px; align-items: stretch; }
-  .search-input { flex: 1; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 11px 14px; font-size: 15px; font-family: inherit; outline: none; background: #fafaf8; transition: border-color 0.15s; }
-  .search-input:focus { border-color: rgba(0,0,0,0.4); background: #fff; }
-  .search-btn { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 0 22px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
-  .search-btn:hover { opacity: 0.82; }
-  .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Conversation thread */
+  .turn { margin-bottom: 1.75rem; }
+  .q-bubble { display: inline-block; background: #1a1a18; color: #fff; font-size: 14px; padding: 9px 14px; border-radius: 12px 12px 12px 3px; margin-bottom: 1rem; line-height: 1.4; max-width: 90%; }
 
-  .controls { display: flex; gap: 1.5rem; margin-top: 1rem; align-items: center; flex-wrap: wrap; }
-  .control-group { display: flex; align-items: center; gap: 8px; }
-  .control-label { font-size: 13px; color: #666; }
-  .seg { display: flex; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
-  .seg-btn { background: none; border: none; padding: 5px 13px; font-size: 13px; cursor: pointer; color: #555; transition: background 0.12s, color 0.12s; }
-  .seg-btn.active { background: #1a1a18; color: #fff; }
-  .seg-btn:not(:last-child) { border-right: 0.5px solid rgba(0,0,0,0.18); }
-
-  .answer-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 1.5rem 1.75rem; margin-bottom: 1.25rem; }
+  .answer-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 1.4rem 1.6rem; }
   .answer-label { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; color: #534AB7; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
   .answer-label .dot { width: 6px; height: 6px; border-radius: 50%; background: #534AB7; }
   .answer-text { font-size: 15px; line-height: 1.75; color: #222; }
   .answer-text p { margin-bottom: 0.9rem; }
+  .answer-text p:last-child { margin-bottom: 0; }
   .answer-text .cite { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; margin: 0 1px; font-size: 11px; font-weight: 500; color: #185FA5; background: #e6f1fb; border-radius: 4px; cursor: pointer; vertical-align: text-top; text-decoration: none; }
   .answer-text .cite:hover { background: #b5d4f4; }
 
-  .sources-title { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.04em; margin: 1.5rem 0 0.6rem; }
-  .source-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 0.85rem 1.1rem; margin-bottom: 0.55rem; display: flex; gap: 12px; transition: border-color 0.15s; }
-  .source-card:hover { border-color: rgba(0,0,0,0.22); }
+  .coverage { font-size: 12px; color: #888; margin: 1rem 0 0.4rem; line-height: 1.5; }
+  .coverage .info { cursor: help; border-bottom: 1px dotted #aaa; }
+
+  .sources-title { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.04em; margin: 1rem 0 0.5rem; }
+  .source-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 0.7rem 1rem; margin-bottom: 0.5rem; display: flex; gap: 11px; transition: border-color 0.15s; }
   .source-card.highlight { border-color: #378ADD; background: #f5faff; }
   .source-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px; background: #e6f1fb; color: #185FA5; font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
   .source-body { flex: 1; min-width: 0; }
   .source-title-link { font-size: 13px; font-weight: 500; color: #185FA5; text-decoration: none; line-height: 1.4; }
   .source-title-link:hover { text-decoration: underline; }
-  .source-meta { font-size: 11px; color: #999; margin-top: 3px; }
+  .source-meta { font-size: 11px; color: #999; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tier { font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 10px; }
+  .tier-plenary { background: #eeedfe; color: #3C3489; }
+  .tier-oral    { background: #e1f5ee; color: #0F6E56; }
+  .tier-poster  { background: #f1efe8; color: #5F5E5A; }
+  .tier-pubonly { background: #faece7; color: #993C1D; }
+  .tier-session { background: #f1efe8; color: #5F5E5A; }
+  .relscore { color: #aaa; }
 
-  .spinner { display: none; text-align: center; padding: 3rem 0; }
-  .spinner.visible { display: block; }
-  .spin { width: 26px; height: 26px; border: 2px solid rgba(0,0,0,0.1); border-top-color: #534AB7; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
-  .spin-label { font-size: 13px; color: #999; margin-top: 12px; }
+  /* Input dock */
+  .dock { position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, #f5f4f0 70%, rgba(245,244,240,0)); padding: 1rem 1.5rem 1.25rem; }
+  .dock-inner { max-width: 820px; margin: 0 auto; }
+  .search-box { background: #fff; border-radius: 14px; border: 0.5px solid rgba(0,0,0,0.15); padding: 0.9rem 1rem; box-shadow: 0 2px 14px rgba(0,0,0,0.06); }
+  .search-row { display: flex; gap: 10px; align-items: stretch; }
+  .search-input { flex: 1; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 11px 14px; font-size: 15px; font-family: inherit; outline: none; background: #fafaf8; transition: border-color 0.15s; }
+  .search-input:focus { border-color: rgba(0,0,0,0.4); background: #fff; }
+  .search-btn { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 0 22px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .search-btn:hover { opacity: 0.85; }
+  .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .controls { display: flex; gap: 10px; margin-top: 0.7rem; align-items: center; }
+  .control-label { font-size: 12px; color: #777; }
+  .seg { display: flex; border: 0.5px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
+  .seg-btn { background: none; border: none; padding: 4px 12px; font-size: 12px; cursor: pointer; color: #555; }
+  .seg-btn.active { background: #1a1a18; color: #fff; }
+  .seg-btn:not(:last-child) { border-right: 0.5px solid rgba(0,0,0,0.18); }
+  .hint { font-size: 11px; color: #aaa; margin-left: auto; }
+
+  .spin-row { display: flex; align-items: center; gap: 10px; color: #999; font-size: 13px; padding: 0.5rem 0; }
+  .spin { width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.12); border-top-color: #534AB7; border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .error-msg { background: #fcebeb; border: 0.5px solid #f09595; border-radius: 8px; padding: 0.8rem 1rem; font-size: 13px; color: #A32D2D; margin-bottom: 1rem; display: none; }
-  .error-msg.visible { display: block; }
+  .error-msg { background: #fcebeb; border: 0.5px solid #f09595; border-radius: 8px; padding: 0.7rem 1rem; font-size: 13px; color: #A32D2D; margin-bottom: 1rem; }
+  .disabled-banner { background: #faeeda; border: 0.5px solid #efc775; border-radius: 8px; padding: 0.7rem 1rem; font-size: 13px; color: #854F0B; margin-bottom: 1rem; }
 
-  .empty { text-align: center; padding: 3.5rem 0; color: #aaa; }
-  .empty-icon { font-size: 38px; margin-bottom: 1rem; opacity: 0.4; }
+  .empty { text-align: center; padding: 3rem 0 1rem; color: #aaa; }
+  .empty-icon { font-size: 36px; margin-bottom: 0.8rem; opacity: 0.4; }
   .empty p { font-size: 14px; }
-  .examples { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 1.2rem; }
-  .example-pill { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid rgba(0,0,0,0.18); background: #fff; color: #555; cursor: pointer; transition: background 0.12s; }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 1rem; }
+  .example-pill { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid rgba(0,0,0,0.18); background: #fff; color: #555; cursor: pointer; }
   .example-pill:hover { background: #f1efe8; }
 
-  /* Fragment search mode */
-  .frag-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 0.7rem; }
-  .frag-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .frag-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 1rem 1.3rem; margin-bottom: 0.6rem; }
+  .frag-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; align-items: flex-start; }
   .frag-title a { font-size: 14px; font-weight: 500; color: #185FA5; text-decoration: none; line-height: 1.4; }
-  .frag-title a:hover { text-decoration: underline; }
-  .score-badge { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 20px; background: #eaf3de; color: #3B6D11; height: fit-content; }
   .frag-excerpt { font-size: 13px; line-height: 1.6; color: #444; background: #fafaf8; border-radius: 7px; padding: 9px 11px; border-left: 2px solid rgba(0,0,0,0.1); }
-
-  .disabled-banner { background: #faeeda; border: 0.5px solid #efc775; border-radius: 8px; padding: 0.7rem 1rem; font-size: 13px; color: #854F0B; margin-bottom: 1rem; }
   mark { background: #faeeda; border-radius: 2px; padding: 0 2px; }
 </style>
 </head>
@@ -83,168 +94,220 @@
 
 <header>
   <div class="logo"><div class="logo-dot"></div> Blood 2025 ASH — RAG Assistant</div>
-  <div class="stats">
-    <span class="stat"><strong>8,255</strong> articles</span>
-    <span class="stat"><strong>{{ stats.get('with_figs', 0)|int }}</strong> chunks</span>
+  <div class="header-actions">
+    <span class="stat"><strong>8,255</strong> abstracts</span>
+    <button class="new-btn" onclick="newConversation()"><i></i>New conversation</button>
   </div>
 </header>
 
 <main>
   {% if not synthesis %}
   <div class="disabled-banner">
-    Synthesis mode disabled: <code>ANTHROPIC_API_KEY</code> is not set on the server.
-    Set the variable and restart to get cited summary answers. Fragment search still works.
+    Synthesis disabled: <code>ANTHROPIC_API_KEY</code> not set on the server. Fragment search still works.
   </div>
   {% endif %}
 
-  <div class="search-box">
-    <div class="search-row">
-      <input class="search-input" type="text" id="query" placeholder="Ask a question about the ASH 2025 abstracts…" autocomplete="off" spellcheck="false">
-      <button class="search-btn" id="searchBtn" onclick="run()">Ask</button>
-    </div>
-    <div class="controls">
-      <div class="control-group">
-        <span class="control-label">Action:</span>
-        <div class="seg" id="actionGroup">
-          <button class="seg-btn active" data-action="ask" onclick="setAction(this)">Synthesize answer</button>
-          <button class="seg-btn" data-action="search" onclick="setAction(this)">Search fragments</button>
-        </div>
-      </div>
-      <div class="control-group">
-        <span class="control-label">Corpus:</span>
-        <div class="seg" id="modeGroup">
-          <button class="seg-btn active" data-mode="with_figs" onclick="setMode(this)">With figures</button>
-          <button class="seg-btn" data-mode="no_figs" onclick="setMode(this)">Without figures</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="error-msg" id="errorMsg"></div>
-
-  <div class="spinner" id="spinner">
-    <div class="spin"></div>
-    <div class="spin-label" id="spinLabel">Analyzing the abstracts and drafting…</div>
-  </div>
-
-  <div id="results"></div>
+  <div id="thread"></div>
 
   <div class="empty" id="emptyState">
     <div class="empty-icon">&#129504;</div>
-    <p>Ask anything. The answer is based <strong>only</strong> on the 8,255 abstracts, with a citation for every source.</p>
+    <p>Ask anything. Answers are grounded <strong>only</strong> in the 8,255 abstracts, with a citation per source. Ask follow-ups to go deeper on the same topic.</p>
     <div class="examples">
       <span class="example-pill" onclick="loadEx(this)">What efficacy does teclistamab show in refractory myeloma?</span>
-      <span class="example-pill" onclick="loadEx(this)">CAR-T toxicities in leukemia</span>
+      <span class="example-pill" onclick="loadEx(this)">Predictors of neurotoxicity with cilta-cel</span>
       <span class="example-pill" onclick="loadEx(this)">Luspatercept results in thalassemia</span>
     </div>
   </div>
 </main>
 
+<div class="dock">
+  <div class="dock-inner">
+    <div id="errorSlot"></div>
+    <div class="search-box">
+      <div class="search-row">
+        <input class="search-input" type="text" id="query" placeholder="Ask a question — or a follow-up…" autocomplete="off" spellcheck="false">
+        <button class="search-btn" id="searchBtn" onclick="run()">Ask</button>
+      </div>
+      <div class="controls">
+        <span class="control-label">Mode:</span>
+        <div class="seg" id="actionGroup">
+          <button class="seg-btn active" data-action="ask" onclick="setAction(this)">Synthesize</button>
+          <button class="seg-btn" data-action="search" onclick="setAction(this)">Search fragments</button>
+        </div>
+        <span class="hint" id="modeHint">Follow-ups continue the conversation</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let action = 'ask';
-let mode = 'with_figs';
-const synthesisOn = {{ 'true' if synthesis else 'false' }};
+let history = [];   // [{q, a}] clean turns sent to the backend
 
 function setAction(btn) {
   document.querySelectorAll('#actionGroup .seg-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   action = btn.dataset.action;
   document.getElementById('searchBtn').textContent = action === 'ask' ? 'Ask' : 'Search';
-}
-function setMode(btn) {
-  document.querySelectorAll('#modeGroup .seg-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  mode = btn.dataset.mode;
+  document.getElementById('modeHint').textContent = action === 'ask'
+    ? 'Follow-ups continue the conversation' : 'One-shot semantic search';
 }
 function loadEx(el) { document.getElementById('query').value = el.textContent; run(); }
+function newConversation() {
+  history = [];
+  document.getElementById('thread').innerHTML = '';
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('query').focus();
+}
 document.getElementById('query').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
 
-function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
+function esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function renderCitations(text) {
-  // Turns [n] into clickable chips that highlight the source
-  return esc(text).replace(/\[(\d+)\]/g, (m, n) =>
-    `<a class="cite" onclick="jumpSource(${n})">${n}</a>`);
+  return esc(text).replace(/\[(\d+)\]/g, (m, n) => `<a class="cite" data-n="${n}">${n}</a>`);
 }
 
-function jumpSource(n) {
-  const el = document.getElementById('src-' + n);
-  if (el) {
-    el.scrollIntoView({behavior:'smooth', block:'center'});
-    el.classList.add('highlight');
-    setTimeout(() => el.classList.remove('highlight'), 1600);
-  }
+function tierClass(t) {
+  const k = (t||'').toLowerCase();
+  if (k.startsWith('plenary')) return 'tier-plenary';
+  if (k.startsWith('oral')) return 'tier-oral';
+  if (k.startsWith('poster')) return 'tier-poster';
+  if (k.startsWith('publication')) return 'tier-pubonly';
+  return 'tier-session';
 }
 
 async function run() {
-  const query = document.getElementById('query').value.trim();
-  if (!query) return;
+  const q = document.getElementById('query').value.trim();
+  if (!q) return;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('errorSlot').innerHTML = '';
+  document.getElementById('query').value = '';
+
+  if (action === 'search') return runSearch(q);
+
+  const thread = document.getElementById('thread');
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>
+    <div class="spin-row"><div class="spin"></div> Analyzing the abstracts and drafting…</div>`;
+  thread.appendChild(turn);
+  window.scrollTo(0, document.body.scrollHeight);
 
   const btn = document.getElementById('searchBtn');
-  const spin = document.getElementById('spinner');
-  const spinLabel = document.getElementById('spinLabel');
-  const err = document.getElementById('errorMsg');
-  const res = document.getElementById('results');
-  const empty = document.getElementById('emptyState');
-
   btn.disabled = true;
-  err.classList.remove('visible');
-  res.innerHTML = '';
-  empty.style.display = 'none';
-  spinLabel.textContent = action === 'ask'
-    ? 'Analyzing the abstracts and drafting…'
-    : 'Searching for relevant fragments…';
-  spin.classList.add('visible');
-
   try {
-    const endpoint = action === 'ask' ? '/ask' : '/search';
-    const body = action === 'ask'
-      ? {query, mode}
-      : {query, mode, top_k: 8};
-    const resp = await fetch(endpoint, {
+    const resp = await fetch('/ask', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
+      body: JSON.stringify({query: q, history}),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Unknown error');
-
-    if (action === 'ask') renderAnswer(data);
-    else renderFragments(data.results, query);
+    turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>` + renderAnswer(data);
+    bindCitations(turn);
+    history.push({q, a: data.answer});
   } catch(e) {
-    err.textContent = 'Error: ' + e.message;
-    err.classList.add('visible');
-    empty.style.display = 'block';
+    turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>
+      <div class="error-msg">Error: ${esc(e.message)}</div>`;
   } finally {
     btn.disabled = false;
-    spin.classList.remove('visible');
+    window.scrollTo(0, document.body.scrollHeight);
   }
 }
 
 function renderAnswer(data) {
-  const res = document.getElementById('results');
-  const paras = data.answer.split(/\n\n+/).map(p =>
-    `<p>${renderCitations(p)}</p>`).join('');
+  const paras = data.answer.split(/\n\n+/).map(p => `<p>${renderCitations(p)}</p>`).join('');
+  let html = `<div class="answer-card">
+    <div class="answer-label"><span class="dot"></span> Answer based on the abstracts</div>
+    <div class="answer-text">${paras}</div></div>`;
 
-  let html = `
-<div class="answer-card">
-  <div class="answer-label"><span class="dot"></span> Answer based on the abstracts</div>
-  <div class="answer-text">${paras}</div>
-</div>`;
+  // Coverage line
+  const c = data.coverage;
+  if (c) {
+    const bt = c.by_tier || {};
+    const parts = [];
+    if (bt.plenary) parts.push(`Plenary ${bt.plenary}`);
+    if (bt.oral) parts.push(`Oral ${bt.oral}`);
+    if (bt.poster) parts.push(`Poster ${bt.poster}`);
+    if (bt.regular) parts.push(`Session ${bt.regular}`);
+    if (bt.pubonly) parts.push(`Pub-only ${bt.pubonly}`);
+    html += `<div class="coverage">
+      <span class="info" title="Relevance is the cosine similarity (0–1) between your question and each abstract's text — a semantic-match score, not a clinical importance ranking. Retrieval returns the closest matches, not every abstract.">
+      ${c.above_floor} abstracts matched above relevance ${c.floor}</span>
+      ${parts.length ? '— ' + parts.join(' · ') : ''}.
+      This answer synthesizes the top ${data.sources.length}. The corpus has 8,255 abstracts;
+      results are the closest matches, not an exhaustive review — ask a more specific follow-up to dig deeper.</div>`;
+  }
 
   if (data.sources && data.sources.length) {
     html += `<div class="sources-title">Cited sources</div>`;
-    html += data.sources.map(s => `
-<div class="source-card" id="src-${s.num}">
-  <div class="source-num">${s.num}</div>
-  <div class="source-body">
-    <a class="source-title-link" href="${s.url}" target="_blank" rel="noopener">${esc(s.title)}</a>
-    <div class="source-meta">${s.doi ? 'DOI: ' + s.doi + ' · ' : ''}Relevance ${s.score}</div>
-  </div>
-</div>`).join('');
+    html += data.sources.map(s => {
+      const loc = s.locator ? esc(s.locator) : '';
+      const doi = s.doi ? `doi:${esc(s.doi)}` : '';
+      return `<div class="source-card" id="src-${s.num}">
+        <div class="source-num">${s.num}</div>
+        <div class="source-body">
+          <a class="source-title-link" href="${s.url}" target="_blank" rel="noopener">${esc(s.title)}</a>
+          <div class="source-meta">
+            <span class="tier ${tierClass(s.tier)}">${esc(s.tier)}</span>
+            ${loc ? `<span>${loc}</span>` : ''}
+            ${doi ? `<span>${doi}</span>` : ''}
+            <span class="relscore">relevance ${s.score}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   } else {
-    html += `<div class="sources-title" style="color:#999">No sources cited (clarification or no-answer response)</div>`;
+    html += `<div class="sources-title" style="color:#aaa">No sources cited (clarification or no-answer)</div>`;
   }
-  res.innerHTML = html;
+  return html;
+}
+
+function bindCitations(scope) {
+  scope.querySelectorAll('.cite').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = scope.querySelector('#src-' + el.dataset.n);
+      if (t) {
+        t.scrollIntoView({behavior:'smooth', block:'center'});
+        t.classList.add('highlight');
+        setTimeout(() => t.classList.remove('highlight'), 1600);
+      }
+    });
+  });
+}
+
+async function runSearch(q) {
+  const thread = document.getElementById('thread');
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>
+    <div class="spin-row"><div class="spin"></div> Searching fragments…</div>`;
+  thread.appendChild(turn);
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/search', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query: q, top_k: 8}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Unknown error');
+    const cards = (data.results||[]).map(r => `
+      <div class="frag-card">
+        <div class="frag-top">
+          <div class="frag-title"><a href="${r.url}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
+          <span class="tier ${tierClass(r.tier)}">${esc(r.tier)}</span>
+        </div>
+        <div class="frag-excerpt">${highlightTerms(r.excerpt, q)}</div>
+        <div class="source-meta" style="margin-top:6px"><span class="relscore">relevance ${r.score}</span>${r.doi ? ' · doi:'+esc(r.doi) : ''}</div>
+      </div>`).join('');
+    turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>
+      <div class="sources-title">${(data.results||[]).length} fragments</div>${cards}`;
+  } catch(e) {
+    turn.innerHTML = `<div class="q-bubble">${esc(q)}</div>
+      <div class="error-msg">Error: ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    window.scrollTo(0, document.body.scrollHeight);
+  }
 }
 
 function highlightTerms(text, query) {
@@ -255,23 +318,6 @@ function highlightTerms(text, query) {
     out = out.replace(re, '<mark>$1</mark>');
   });
   return out;
-}
-
-function renderFragments(results, query) {
-  const res = document.getElementById('results');
-  if (!results || !results.length) {
-    document.getElementById('emptyState').style.display = 'block';
-    return;
-  }
-  res.innerHTML = `<div class="sources-title">${results.length} fragments</div>` +
-    results.map(r => `
-<div class="frag-card">
-  <div class="frag-top">
-    <div class="frag-title"><a href="${r.url}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
-    <span class="score-badge">${r.score.toFixed(3)}</span>
-  </div>
-  <div class="frag-excerpt">${highlightTerms(r.excerpt, query)}</div>
-</div>`).join('');
 }
 </script>
 </body>
