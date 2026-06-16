@@ -138,7 +138,8 @@ def search():
             "url":     source_url(doi, pii),
             "doi":     doi,
             "tier":    TIER_LABEL.get(stype, "Session"),
-            "excerpt": doc[:500].strip(),
+            # TDM compliance: never display more than 200 verbatim characters
+            "excerpt": doc.strip()[:200],
         })
     return jsonify({"results": results, "total": len(results)})
 
