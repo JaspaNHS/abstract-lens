@@ -85,8 +85,46 @@ def fig_faithfulness():
     plt.close(fig)
 
 
+# ── Figure 4: pipeline flow diagram ────────────────────────────────────────────
+def fig_pipeline():
+    from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+    stages = [
+        ("1. Acquire", "TOC scrape (Selenium)\n+ API download", "8,255 abstracts\ntier-tagged", INDIGO),
+        ("2. Parse", "PyMuPDF extraction\n+ body recovery", "0 broken chars\n116 → 0 body-less", TEAL),
+        ("3. Index", "MiniLM embeddings\n→ ChromaDB", "cosine vector\nstore", SAND),
+        ("4. Retrieve", "top-k + tier\nre-rank", "Plenary > Oral >\nPoster > Pub-only", CORAL),
+        ("5. Synthesize", "Claude Opus 4.8\ngrounded", "cited; declines\nif unknown", INDIGO),
+        ("6. Serve", "web app +\nHTTPS tunnel", "multi-turn,\nlogged", CRIMSON),
+    ]
+    n = len(stages)
+    fig, ax = plt.subplots(figsize=(13, 3.2))
+    ax.set_xlim(0, n * 2.15); ax.set_ylim(0, 3); ax.axis("off")
+    ax.grid(False)
+    bw, bh, gap = 1.8, 1.9, 0.35
+    for i, (title, mid, sub, color) in enumerate(stages):
+        x = i * (bw + gap) + 0.15; y = 0.6
+        box = FancyBboxPatch((x, y), bw, bh, boxstyle="round,pad=0.02,rounding_size=0.12",
+                             linewidth=1.6, edgecolor=color, facecolor=color + "14")
+        ax.add_patch(box)
+        cx = x + bw / 2
+        ax.text(cx, y + bh - 0.32, title, ha="center", va="center", fontsize=11.5,
+                weight="bold", color=color)
+        ax.text(cx, y + bh - 0.92, mid, ha="center", va="center", fontsize=9.2, color="#2a2521")
+        ax.text(cx, y + 0.42, sub, ha="center", va="center", fontsize=8.2,
+                color="#6b635c", style="italic")
+        if i < n - 1:
+            ax.add_patch(FancyArrowPatch(
+                (x + bw + 0.02, y + bh / 2), (x + bw + gap - 0.02, y + bh / 2),
+                arrowstyle="-|>", mutation_scale=16, lw=1.6, color="#9a8f82"))
+    ax.text(n * 2.15 / 2, 2.85, "Abstract Lens — processing pipeline",
+            ha="center", fontsize=13, weight="bold", color="#211d1a")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig4_pipeline.png", bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
-    fig_tiers(); fig_stress(); fig_faithfulness()
+    fig_tiers(); fig_stress(); fig_faithfulness(); fig_pipeline()
     print(f"Figures written to {OUT}:")
     for p in sorted(OUT.glob("*.png")):
         print("  ", p.name, f"({p.stat().st_size//1024} KB)")

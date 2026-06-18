@@ -124,9 +124,13 @@ expert-validation phase using a clinician-curated question set with reference an
 
 | File | Caption |
 |---|---|
-| `figures/fig1_corpus_tiers.png` | **Figure 1.** Corpus composition by ASH 2025 presentation tier (n = 8,255). |
-| `figures/fig2_stress_test.png` | **Figure 2.** Hallucination stress test: correct grounding behaviour on all adversarial categories (8/8). |
-| `figures/fig3_faithfulness.png` | **Figure 3.** Citation faithfulness on exploratory queries (LLM-judge); all queries ≥ 90%. |
+| `figures/fig4_pipeline.png` | **Figure 1.** Abstract Lens processing pipeline: acquire → parse → index → retrieve → synthesize → serve. |
+| `figures/fig1_corpus_tiers.png` | **Figure 2.** Corpus composition by ASH 2025 presentation tier (n = 8,255). |
+| `figures/fig2_stress_test.png` | **Figure 3.** Hallucination stress test: correct grounding behaviour on all adversarial categories (8/8). |
+| `figures/fig3_faithfulness.png` | **Figure 4.** Citation faithfulness on exploratory queries (LLM-judge); all queries ≥ 90%. |
+
+*(Figure numbering above is suggested for the write-up; file names keep their original
+index. The pipeline diagram works well as Figure 1 / graphical abstract.)*
 
 ---
 
