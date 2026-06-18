@@ -12,6 +12,7 @@ rag/chromadb/
 rag/chunks_with_figs/
 rag/chunks_no_figs/
 rag/meta_index.json
+rag/query_log.jsonl
 rag/**/manifest.json
 
 # ── Python ────────────────────────────────────────────────

@@ -6,8 +6,10 @@ Open:  http://localhost:5000
 
 import os
 import sys
+import json
+import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import chromadb
 from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 
@@ -28,7 +30,46 @@ except ImportError:
 DB_PATH = str(Path(__file__).parent / "chromadb")
 CORPUS  = "blood_with_figs"   # figures/no-figures toggle removed — always with figures
 
+# Access gate: when APP_PASSWORD is set, every request needs HTTP Basic auth.
+# Leave it unset for local development (no gate). Username is ignored.
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+# Validation logging: every question (and its answer) is appended here.
+LOG_PATH = Path(__file__).parent / "query_log.jsonl"
+
 app = Flask(__name__)
+
+
+@app.before_request
+def _gate():
+    if not APP_PASSWORD:
+        return  # open (local dev)
+    auth = request.authorization
+    if auth and auth.password == APP_PASSWORD:
+        return
+    return Response(
+        "Abstract Lens — authentication required.", 401,
+        {"WWW-Authenticate": 'Basic realm="Abstract Lens"'},
+    )
+
+
+def log_query(query, n_turn, answer, sources, cov):
+    """Append a Q&A record for the validation phase."""
+    try:
+        rec = {
+            "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            "turn": n_turn,
+            "query": query,
+            "n_sources": len(sources),
+            "sources": [{"num": s["num"], "tier": s["tier"],
+                         "loc": s.get("locator", ""), "title": s["title"]}
+                        for s in sources],
+            "coverage": cov,
+            "answer": answer,
+        }
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"  [log] failed: {e}")
 
 print("Loading ONNX embedding and ChromaDB...")
 ef     = ONNXMiniLM_L6_V2()
@@ -102,6 +143,8 @@ def ask():
             "session_type": s.get("session_type", "unknown"),
             "score": s.get("score", 0),
         })
+
+    log_query(query, len(clean_hist) + 1, answer, src_list, cov)
 
     return jsonify({
         "answer": answer,
