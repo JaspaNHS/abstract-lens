@@ -191,6 +191,7 @@
     </svg>
     <h1 class="serif">Ask the abstracts anything</h1>
     <p>I've read all 8,255 ASH 2025 abstracts. Ask a question and I'll answer <strong>only</strong> from what they actually say — with a citation on every claim. Ask follow-ups to go deeper on the same topic.</p>
+    <p style="font-size:12.5px; color:var(--ink-faint); margin-top:0.9rem;">Research prototype for abstract exploration. Answers are limited to the ASH 2025 abstract corpus, may be incomplete, and are <strong>not medical advice</strong>.</p>
     <div class="examples">
       <span class="example-pill" onclick="loadEx(this)">Efficacy of teclistamab in refractory myeloma?</span>
       <span class="example-pill" onclick="loadEx(this)">Predictors of neurotoxicity with cilta-cel</span>
@@ -225,7 +226,7 @@ let history = [];   // [{q, a}] clean turns sent to the backend
 const LOADING = [
   'Peering through the abstracts…',
   'Focusing the lens…',
-  'Reading the receipts…',
+  'Checking the citations…',
   'Cross-checking the sources…',
 ];
 
@@ -316,11 +317,11 @@ function renderAnswer(data) {
     if (bt.regular) parts.push(`Session ${bt.regular}`);
     if (bt.pubonly) parts.push(`Pub-only ${bt.pubonly}`);
     html += `<div class="coverage">
-      <span class="info" title="Relevance is the cosine similarity (0–1) between your question and each abstract's text — a semantic-match score, not a clinical importance ranking. Retrieval returns the closest matches, not every abstract.">
-      ${c.above_floor} abstracts matched above relevance ${c.floor}</span>
-      ${parts.length ? '— ' + parts.join(' · ') : ''}.
-      This answer synthesizes the top ${data.sources.length}. The corpus has 8,255 abstracts;
-      results are the closest matches, not an exhaustive review — ask a more specific follow-up to dig deeper.</div>`;
+      <span class="info" title="Relevance is the cosine similarity between your question and each abstract's text — a semantic-match score, not a clinical importance ranking. 'Near' means within ${c.band} of the closest match. This is a heuristic breadth indicator, not measured recall; retrieval is not exhaustive.">
+      ${c.near} abstract${c.near===1?'':'s'} scored near the top match (relevance ≈ ${c.top})</span>
+      ${parts.length ? '(' + parts.join(' · ') + ')' : ''}.
+      This answer synthesizes the top ${data.sources.length}. These are the closest matches,
+      not an exhaustive review — ask a more specific follow-up to dig deeper.</div>`;
   }
 
   if (data.sources && data.sources.length) {
@@ -336,7 +337,7 @@ function renderAnswer(data) {
             <span class="tier ${tierClass(s.tier)}">${esc(s.tier)}</span>
             ${loc ? `<span>${loc}</span>` : ''}
             ${doi ? `<span>${doi}</span>` : ''}
-            <span class="relscore">relevance ${s.score}</span>
+            <span class="relscore" title="Semantic-match score (cosine similarity, 0–1) between your question and this abstract — not a measure of clinical importance or answer confidence.">relevance ${s.score}</span>
           </div>
         </div>
       </div>`;

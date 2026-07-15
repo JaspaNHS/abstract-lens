@@ -30,8 +30,9 @@ MODEL    = "claude-opus-4-8"
 DB_PATH  = str(Path(__file__).parent / "chromadb")
 META_PATH = Path(__file__).parent / "meta_index.json"
 
-N_CANDIDATES = 40   # fragments pulled from the vector store before re-ranking
+N_CANDIDATES = 60   # fragments pulled from the vector store before re-ranking
 N_CHUNKS     = 12   # distinct abstracts kept as context after re-ranking
+FULLTEXT_CAP = 4500 # chars of each abstract passed to the model (covers the median 725-word abstract)
 RELEVANCE_FLOOR = 0.32   # cosine similarity below this is treated as "weak match"
 
 # Session importance order and the bonus added to the cosine score when re-ranking.
@@ -147,27 +148,67 @@ def retrieve(collection, query: str, meta: dict, n_candidates=N_CANDIDATES) -> l
     return ranked
 
 
-def coverage_stats(ranked: list[dict]) -> dict:
-    """Summarize how much of the corpus matched, by tier and relevance."""
-    strong = [c for c in ranked if c["score"] >= RELEVANCE_FLOOR]
+COVERAGE_POOL = 200    # abstracts probed to estimate breadth
+COVERAGE_BAND = 0.10   # "near" = within this cosine margin of the top match
+
+# NOTE: the MiniLM embedding compresses cosine scores into a narrow high band
+# (~0.36–0.80 even at rank 200), so an ABSOLUTE relevance floor never discriminates.
+# Breadth is therefore reported RELATIVE to the best match: how many distinct abstracts
+# score within COVERAGE_BAND of the top hit. This is a heuristic, not a calibrated recall.
+
+
+def coverage_probe(collection, query: str, meta: dict, n: int = COVERAGE_POOL) -> dict:
+    res = collection.query(
+        query_texts=[query], n_results=n, include=["metadatas", "distances"],
+    )
+    best = {}
+    for m, dist in zip(res["metadatas"][0], res["distances"][0]):
+        pii = m.get("pii", "")
+        if not pii:
+            continue
+        score = 1 - dist
+        if pii not in best or score > best[pii][0]:
+            best[pii] = (score, meta.get(pii, {}).get("session_type", "unknown"))
+    if not best:
+        return {"near": 0, "top": 0.0, "band": COVERAGE_BAND, "by_tier": {}, "pool": n}
+    top = max(s for s, _ in best.values())
+    cutoff = top - COVERAGE_BAND
     by_tier = {}
-    for c in strong:
-        by_tier[c["session_type"]] = by_tier.get(c["session_type"], 0) + 1
-    return {
-        "candidates_total": len(ranked),
-        "above_floor": len(strong),
-        "by_tier": by_tier,
-        "floor": RELEVANCE_FLOOR,
-    }
+    near = 0
+    for score, stype in best.values():
+        if score >= cutoff:
+            near += 1
+            by_tier[stype] = by_tier.get(stype, 0) + 1
+    return {"near": near, "top": round(top, 2), "band": COVERAGE_BAND,
+            "by_tier": by_tier, "pool": n}
+
+
+def attach_fulltext(collection, sources: list[dict]) -> None:
+    """
+    Reconstruct each abstract's FULL text from all its chunks, so results and
+    conclusions that live in a later chunk are not lost when only one matched chunk
+    was retrieved. Falls back to the matched chunk on any error.
+    """
+    for s in sources:
+        try:
+            got = collection.get(where={"pii": s["pii"]}, include=["documents", "metadatas"])
+            docs = got.get("documents") or []
+            metas = got.get("metadatas") or []
+            if docs:
+                ordered = [d for _, d in sorted(zip([m.get("chunk", 0) for m in metas], docs))]
+                s["fulltext"] = " ".join(ordered)
+        except Exception:
+            pass
 
 
 def build_context(sources: list[dict]) -> str:
     lines = []
     for i, s in enumerate(sources, 1):
         loc = f"Blood 2025;146(S1):{s['page']}" if s.get("page") else (s.get("doi") or s["pii"])
+        text = s.get("fulltext", s["text"])[:FULLTEXT_CAP]
         lines.append(
             f"[{i}] ({s['tier_label']} session · {loc}) {s['title']}\n"
-            f"    {s['text'][:2500]}"
+            f"    {text}"
         )
     return "\n\n".join(lines)
 
@@ -221,8 +262,9 @@ def synthesize(query: str, history=None, client=None, cols=None, meta=None, mode
         retrieval_query = f"{history[-1]['q']} {query}"
 
     ranked = retrieve(collection, retrieval_query, meta)
-    cov = coverage_stats(ranked)
+    cov = coverage_probe(collection, retrieval_query, meta)
     sources = ranked[:N_CHUNKS]
+    attach_fulltext(collection, sources)
     context = build_context(sources)
 
     # Build message history (clean Q&A turns) + current turn with fresh fragments
@@ -242,10 +284,11 @@ def synthesize(query: str, history=None, client=None, cols=None, meta=None, mode
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=2200,
+        max_tokens=3500,
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
-        system=SYSTEM_PROMPT,
+        system=[{"type": "text", "text": SYSTEM_PROMPT,
+                 "cache_control": {"type": "ephemeral"}}],
         messages=messages,
     )
 
@@ -289,18 +332,14 @@ def main():
         if invalid:
             print(f"\n  [!] stripped hallucinated citations: {invalid}")
         print("\n  " + "-" * 60)
-        print(f"  Coverage: {cov['above_floor']} abstracts matched above relevance "
-              f"{cov['floor']} (by tier: {cov['by_tier']})")
+        print(f"  Coverage: {cov['near']} abstracts near the top match "
+              f"(relevance ~{cov['top']}, by tier: {cov['by_tier']})")
         print("  CITED SOURCES:")
-        for s in sources_cited(sources):
+        for s in sources:
             loc = f"Blood 2025;146(S1):{s['page']}" if s.get("page") else s["pii"]
             doi = f" doi:{s['doi']}" if s.get("doi") else ""
             print(f"    [{s['num']}] ({s['tier_label']}) {s['title'][:60]}  {loc}{doi}")
         history.append({"q": q, "a": answer})
-
-
-def sources_cited(sources):
-    return sources
 
 
 if __name__ == "__main__":
