@@ -1,0 +1,26 @@
+# Render Blueprint for Abstract Lens (free tier).
+# Deploy: render.com → New → Blueprint → connect this repo → apply.
+# Then set the secret env vars in the dashboard (GH_TOKEN, ANTHROPIC_API_KEY, APP_PASSWORD).
+# The index is a PRIVATE release asset fetched at build time — the licensed corpus is
+# never made public.
+services:
+  - type: web
+    name: abstract-lens
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: "bash deploy/render/build.sh"
+    startCommand: "cd rag && gunicorn -b 0.0.0.0:$PORT -w 1 --threads 4 -t 180 app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: INDEX_REPO
+        value: "JaspaNHS/abstract-lens-index"
+      - key: INDEX_TAG
+        value: "index-v1"
+      - key: GH_TOKEN
+        sync: false      # GitHub token with read access to the private index repo
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

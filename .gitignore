@@ -18,6 +18,9 @@ rag/**/manifest.json
 # ── HF Space staging build (assembled by prepare_space.ps1; contains the 588MB index) ──
 deploy/hf-space/space-build/
 
+# ── Packaged index (uploaded as a GitHub Release asset, not committed) ──
+index.zip
+
 # ── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
