@@ -15,6 +15,9 @@ rag/meta_index.json
 rag/query_log.jsonl
 rag/**/manifest.json
 
+# ── HF Space staging build (assembled by prepare_space.ps1; contains the 588MB index) ──
+deploy/hf-space/space-build/
+
 # ── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]

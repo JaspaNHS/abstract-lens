@@ -231,4 +231,6 @@ def search():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=5000)
+    # PORT is provided by the host (Hugging Face Spaces uses 7860); defaults to 5000 locally.
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host="0.0.0.0", port=port)
