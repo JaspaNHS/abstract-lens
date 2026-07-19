@@ -1,0 +1,7 @@
+# Minimal dependencies to RUN Abstract Lens locally (serve only — no scraping/indexing).
+# chromadb is pinned so the prebuilt index is read by the same version that built it.
+chromadb==1.5.9
+onnxruntime==1.26.0
+flask==3.1.3
+anthropic==0.109.1
+requests
